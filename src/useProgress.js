@@ -3,10 +3,10 @@ import { countryById } from './data';
 import { calculateStreak, localDateKey, streakMilestone } from './streak';
 import { supabase } from './supabase';
 
-function storedList(key, valid) {
+function storedList(key, valid, normalize = value => value) {
   try {
     const value = JSON.parse(localStorage.getItem(key) || '[]');
-    return Array.isArray(value) ? [...new Set(value.filter(valid))] : [];
+    return Array.isArray(value) ? [...new Set(value.map(normalize).filter(valid))] : [];
   } catch {
     return [];
   }
@@ -18,7 +18,7 @@ function isMissingSchema(error) {
 }
 
 export function useProgress() {
-  const [guestMemorized, setGuestMemorized] = useState(() => storedList('atlas-memorized-v1', id => countryById[id]));
+  const [guestMemorized, setGuestMemorized] = useState(() => storedList('atlas-memorized-v1', id => countryById[id], id => id === 'IL' ? 'PS' : id));
   const [guestDays, setGuestDays] = useState(() => storedList('atlas-learning-days-v1', day => /^\d{4}-\d{2}-\d{2}$/.test(day)));
   const [today, setToday] = useState(localDateKey);
   const [user, setUser] = useState(null);
@@ -71,7 +71,7 @@ export function useProgress() {
       } else {
         setAccountProgress({
           userId,
-          ids: (countriesResult.data || []).map(row => row.country_code).filter(id => countryById[id]),
+          ids: [...new Set((countriesResult.data || []).map(row => row.country_code === 'IL' ? 'PS' : row.country_code).filter(id => countryById[id]))],
           days: (daysResult.data || []).map(row => row.learned_on),
         });
       }
@@ -110,7 +110,9 @@ export function useProgress() {
     setAccountProgress({ userId, ids: nextIds, days: nextDays });
     try {
       const result = alreadyLearned
-        ? await supabase.from('memorized_countries').delete().eq('user_id', userId).eq('country_code', id)
+        ? await (id === 'PS'
+          ? supabase.from('memorized_countries').delete().eq('user_id', userId).in('country_code', ['PS', 'IL'])
+          : supabase.from('memorized_countries').delete().eq('user_id', userId).eq('country_code', id))
         : await supabase.rpc('memorize_country', { p_country_code: id, p_local_day: day });
       if (result.error) throw result.error;
       if (milestone) setCelebration(milestone);
