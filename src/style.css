@@ -155,3 +155,8 @@ button:focus-visible,input:focus-visible{outline-color:#7ea5d3}
 .language-ar .map-annotation{direction:rtl}
 .language-ar .button-note{line-height:1.6}
 @media(max-width:480px){.breadcrumb strong,.breadcrumb span{display:none}}
+
+.map-controls button.spin-active{background:var(--soft);color:#6da8df}
+.map-controls button.spin-active svg{animation:control-spin 2s linear infinite}
+@keyframes control-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.map-controls button.spin-active svg{animation:none}}

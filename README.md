@@ -1,6 +1,6 @@
 # Atlas
 
-An interactive country learning globe built with React and Vite. Explore 195 countries, their capitals and flags, and mark the places you know. The globe supports drag, scroll and pinch zoom. The interface switches between English and Arabic, with Mada for Arabic text. Dark mode is the default.
+An interactive country learning globe built with React and Vite. Explore 195 countries, their capitals and flags, and mark the places you know. The globe supports drag, scroll and pinch zoom, plus a button to start or stop automatic rotation. The interface switches between English and Arabic, with Mada for Arabic text. Dark mode is the default.
 
 ## Run locally
 

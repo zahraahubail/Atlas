@@ -21,6 +21,7 @@ function App() {
   const [language, setLanguage] = useState(() => saved('atlas-site-language-v1', 'en'));
   const [selected, setSelected] = useState('FR');
   const [rotation, setRotation] = useState([-12, -22]);
+  const [isSpinning, setIsSpinning] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
@@ -41,17 +42,33 @@ function App() {
   useEffect(() => { const closeOnOutsidePress = e => { if (searchCardRef.current && !searchCardRef.current.contains(e.target)) setSearchOpen(false); }; document.addEventListener('pointerdown', closeOnOutsidePress); return () => document.removeEventListener('pointerdown', closeOnOutsidePress); }, []);
   useEffect(() => { const close = e => { if (accountRef.current && !accountRef.current.contains(e.target)) setAccountOpen(false); }; document.addEventListener('pointerdown', close); return () => document.removeEventListener('pointerdown', close); }, []);
   useEffect(() => { const observer = new ResizeObserver(([entry]) => setSize(Math.max(300, Math.min(entry.contentRect.width, entry.contentRect.height)))); if(globeRef.current) observer.observe(globeRef.current); return () => observer.disconnect(); }, []);
+  useEffect(() => {
+    if (!isSpinning) return;
+    let frame;
+    let previousTime;
+    const spin = time => {
+      if (previousTime !== undefined) {
+        const elapsed = Math.min(time - previousTime, 50);
+        setRotation(([longitude, latitude]) => [longitude + elapsed * .012 / Math.sqrt(Math.max(1, zoom)), latitude]);
+      }
+      previousTime = time;
+      frame = requestAnimationFrame(spin);
+    };
+    frame = requestAnimationFrame(spin);
+    return () => cancelAnimationFrame(frame);
+  }, [isSpinning, zoom]);
   const projection = useMemo(() => geoOrthographic().translate([size/2,size/2]).scale(size * .465 * zoom).rotate(rotation).clipAngle(90).precision(.5), [size, rotation, zoom]);
   const path = useMemo(() => geoPath(projection), [projection]);
   const t = copy[language];
   const found = useMemo(() => countries.filter(c => (filter === 'all' || (filter === 'memorized' ? memorized.includes(c.id) : !memorized.includes(c.id))) && normalizeSearch(`${c.name} ${c.capital} ${countryName(c, 'ar')} ${capitalName(c, 'ar')}`).includes(normalizeSearch(query))), [filter, query, memorized]);
   const current = countryById[selected];
   const progress = Math.round(memorized.length / TOTAL * 100);
-  const selectCountry = (c, rotate = true) => { setSelected(c.id); setSearchOpen(false); setQuery(''); if (rotate) { const [lon, lat] = geoCentroid(c.shape); setRotation([-lon, -lat]); setZoom(c.id === 'BH' ? 60 : 1); } };
+  const selectCountry = (c, rotate = true) => { setIsSpinning(false); setSelected(c.id); setSearchOpen(false); setQuery(''); if (rotate) { const [lon, lat] = geoCentroid(c.shape); setRotation([-lon, -lat]); setZoom(c.id === 'BH' ? 60 : 1); } };
   const toggleMemorized = () => toggleCountry(selected);
   const randomCountry = () => { const pool = countries.filter(c => !memorized.includes(c.id)); selectCountry((pool.length ? pool : countries)[Math.floor(Math.random() * (pool.length ? pool.length : countries.length))]); };
   const clampZoom = value => Math.max(.7, Math.min(80, value));
   const onPointerDown = e => {
+    setIsSpinning(false);
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) {
@@ -110,7 +127,7 @@ function App() {
           <div className="orbit orbit-one"/><div className="orbit orbit-two"/>
           <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} className={isDragging?'globe-svg dragging':'globe-svg'} aria-label={t.mapLabel}><defs><radialGradient id="ocean" cx="34%" cy="30%"><stop offset="0%" stopColor="var(--ocean-light)"/><stop offset="100%" stopColor="var(--ocean-dark)"/></radialGradient><clipPath id="globeClip"><path d={path({type:'Sphere'})}/></clipPath></defs><path d={path({type:'Sphere'})} fill="url(#ocean)" className="sphere"/><path d={path(geoGraticule10())} className="graticule" clipPath="url(#globeClip)"/>{countries.map(c => <path key={c.id} data-country-id={c.id} d={path(c.shape)||''} className={`country ${memorized.includes(c.id)?'learned':''} ${selected===c.id?'selected':''} ${hovered===c.id?'hovered':''}`} onPointerEnter={e=>{setHovered(c.id);setTip({x:e.clientX,y:e.clientY})}} onPointerMove={e=>setTip({x:e.clientX,y:e.clientY})} onPointerLeave={()=>setHovered(null)} />)}<path d={path({type:'Sphere'})} className="sphere-outline"/></svg>
           {hovered && !isDragging && <div className="map-tooltip" style={{left:tip.x,top:tip.y}}>{flagEmoji(hovered)} {countryName(countryById[hovered], language)}</div>}
-          <div className="map-annotation"><span className="annotation-dot"/> {t.dragExplore}</div><div className="map-controls"><button onPointerDown={e=>e.stopPropagation()} onClick={()=>adjustZoom(1.6)} aria-label={t.zoomIn}><ZoomIn size={19}/></button><span/><button onPointerDown={e=>e.stopPropagation()} onClick={()=>adjustZoom(1/1.6)} aria-label={t.zoomOut}><ZoomOut size={19}/></button><span/><button onPointerDown={e=>e.stopPropagation()} onClick={()=>{setRotation([-12,-22]);setZoom(1)}} aria-label={t.resetGlobe}><RotateCcw size={18}/></button></div>
+          <div className="map-annotation"><span className="annotation-dot"/> {t.dragExplore}</div><div className="map-controls"><button onPointerDown={e=>e.stopPropagation()} onClick={()=>adjustZoom(1.6)} aria-label={t.zoomIn}><ZoomIn size={19}/></button><span/><button onPointerDown={e=>e.stopPropagation()} onClick={()=>adjustZoom(1/1.6)} aria-label={t.zoomOut}><ZoomOut size={19}/></button><span/><button className={isSpinning?'spin-active':''} onPointerDown={e=>e.stopPropagation()} onClick={()=>setIsSpinning(value=>!value)} aria-label={isSpinning?t.stopRotation:t.rotateGlobe} title={isSpinning?t.stopRotation:t.rotateGlobe} aria-pressed={isSpinning}><RotateCcw size={18}/></button></div>
         </div><div className="globe-footer"><div className="legend"><span><i className="swatch yellow"/> {t.toExplore}</span><span><i className="swatch green"/> {t.memorized}</span><span><i className="swatch outline"/> {t.selected}</span></div><div className="globe-hint"><MousePointer2 size={14}/> {t.dragHint}</div></div></div>
         <div className="right-column"><div className="search-card" ref={searchCardRef}><div className="section-kicker">{t.findPlace}</div><div className="search-wrap"><Search size={18}/><input id="country-search" dir="auto" placeholder={t.searchPlaceholder} value={query} onChange={e=>{setQuery(e.target.value);setSearchOpen(true)}} onFocus={()=>setSearchOpen(true)} onKeyDown={e=>{if(e.key==='Enter'&&found[0])selectCountry(found[0]);if(e.key==='Escape')setSearchOpen(false)}}/><span>⌘ K</span></div>{searchOpen&&<div className="search-results"><div className="results-head">{filter==='all'?t.countries:filter==='memorized'?t.memorized:t.toDiscover} <button onClick={()=>{setSearchOpen(false);setFilter('all')}}><X size={14}/></button></div>{found.length ? found.map(c=><button key={c.id} onClick={()=>selectCountry(c)} dir={language==='ar'?'rtl':'ltr'} lang={language}><span className="result-flag">{flagEmoji(c.id)}</span><span className={language==='ar'?'localized-ar result-copy':'result-copy'} dir={language==='ar'?'rtl':'ltr'}><strong>{countryName(c, language)}</strong><small>{capitalName(c, language)}</small></span>{memorized.includes(c.id)&&<Check size={16} className="result-check"/>}</button>) : <p className="no-results">{t.noResults}</p>}</div>}</div>
           <div className="detail-card"><div className="detail-top"><span className="section-kicker">{t.spotlight}</span><span className="detail-index">{String(countries.findIndex(c=>c.id===selected)+1).padStart(2,'0')} / {TOTAL}</span></div><div className="flag-display"><span>{flagEmoji(selected)}</span><div className="flag-decoration">✺</div></div><div className={language==='ar'?'detail-body arabic-details':'detail-body'} dir={language==='ar'?'rtl':'ltr'} lang={language}><div className="country-tag"><span className={memorized.includes(selected)?'status-dot complete':'status-dot'}/>{memorized.includes(selected)?t.learned:t.ready}</div><h2 className={language==='ar'?'localized-ar':''} dir={language==='ar'?'rtl':'ltr'}>{countryName(current, language)}</h2><div className="country-meta"><div className="meta-icon"><MapPin size={17}/></div><div><small>{t.capitalCity}</small><strong className={language==='ar'?'localized-ar':''} dir={language==='ar'?'rtl':'ltr'}>{capitalName(current, language)}</strong></div></div><div className="country-meta"><div className="meta-icon"><Globe2 size={17}/></div><div><small>{t.region}</small><strong className={language==='ar'?'localized-ar':''} dir={language==='ar'?'rtl':'ltr'}>{continentName(current, language)}</strong></div></div><button className={memorized.includes(selected)?'memorize-button done':'memorize-button'} onClick={toggleMemorized} disabled={!!user && (!accountLoaded || !!pendingCountry)}>{memorized.includes(selected)?<><Check size={19}/> {t.removeMemorized} <span>✓</span></>:<>{t.markMemorized} <ArrowRight size={18}/></>}</button><p className="button-note" role={syncError?"alert":undefined}>{user && (progressLoading || !accountLoaded && !syncError) ? t.loadingProgress : syncError ? <><span>{t.syncError}</span> <button className="retry-sync" onClick={retrySync}>{t.retry}</button></> : memorized.includes(selected)?t.learnedNote:t.learnNote}</p></div></div></div>
