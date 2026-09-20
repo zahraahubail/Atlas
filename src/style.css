@@ -194,3 +194,17 @@ button:focus-visible,input:focus-visible{outline-color:#7ea5d3}
 [data-theme='dark'] .streak-celebration-copy>span{color:#e5b46d}
 @keyframes streak-arrive{from{opacity:0;transform:translate(-50%,-16px) scale(.97)}to{opacity:1;transform:translateX(-50%) scale(1)}}
 @media(prefers-reduced-motion:reduce){.streak-celebration{animation:none}}
+
+/* Keep a readable sidebar on iPad widths instead of the cramped icon rail. */
+@media (min-width:761px) and (max-width:980px){
+  .sidebar{width:210px;padding:24px 15px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .brand{padding:0 7px;justify-content:flex-start;margin-bottom:45px}
+  .brand-name,.language-ar .brand-name{display:block;font-size:26px}
+  .sidebar-label{font-size:9px}
+  .nav-item,.nav-item:not(.active),.nav-item.active{font-size:12px;justify-content:flex-start;padding:0 11px}
+  .sidebar-divider,.progress-card,.sidebar-bottom{display:block}
+  .filter-list{display:grid}
+  .content{padding:30px 20px 44px}
+  .topbar{padding:0 20px}
+  .today-label{display:none}
+}
