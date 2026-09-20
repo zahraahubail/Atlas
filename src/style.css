@@ -210,3 +210,11 @@ button:focus-visible,input:focus-visible{outline-color:#7ea5d3}
   .topbar{padding:0 20px}
   .today-label{display:none}
 }
+@media (min-width:761px){
+  .sidebar{
+    height:100dvh;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:max(20px, env(safe-area-inset-bottom));
+  }
+}
