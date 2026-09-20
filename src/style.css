@@ -160,3 +160,38 @@ button:focus-visible,input:focus-visible{outline-color:#7ea5d3}
 .map-controls button.spin-active svg{animation:control-spin 2s linear infinite}
 @keyframes control-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.map-controls button.spin-active svg{animation:none}}
+
+/* Daily learning streak */
+.streak-chip{display:flex;align-items:center;gap:6px;min-height:34px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:var(--soft);color:var(--text);white-space:nowrap;font-size:10px;font-weight:800}
+.streak-chip svg{color:#d69a45;fill:#d69a4530}
+.streak-chip strong{font:700 15px/1 'Outfit',sans-serif}
+.streak-chip.completed{border-color:#dcae65;background:#fff4df;color:#724c16}
+.streak-chip.completed svg{color:#e7972e;fill:#e7972e4a}
+[data-theme='dark'] .streak-chip.completed{background:#3b3229;border-color:#805e38;color:#ffda9b}
+.streak-card-line{display:flex;align-items:center;gap:9px;border-top:1px solid #ffffff36;margin-top:15px;padding-top:14px;color:#fff}
+.streak-card-icon{height:31px;width:31px;border-radius:9px;background:#ffffff24;display:grid;place-items:center;color:#ffd278}
+.streak-card-line strong,.streak-card-line small{display:block}
+.streak-card-line strong{font-size:12px;line-height:1.3}
+.streak-card-line small{color:#c7def6;font-size:10px;margin-top:2px}
+.language-ar .streak-card-line{direction:rtl;text-align:right}
+@media(max-width:760px){.streak-chip span{display:none}.streak-chip{padding:0 8px}}
+@media(max-width:420px){.topbar .breadcrumb{display:none}.topbar .top-actions{width:100%;justify-content:flex-end}}
+
+/* A brief celebration when a new calendar day extends the streak. */
+.streak-celebration{position:fixed;right:24px;bottom:24px;z-index:35;width:min(390px,calc(100vw - 28px));display:flex;align-items:flex-start;gap:13px;padding:17px 16px;border:1px solid #e4b76c;border-radius:17px;background:var(--card);color:var(--text);box-shadow:0 18px 55px #04152f45;animation:streak-arrive .36s ease-out}
+.streak-celebration[dir='rtl']{right:auto;left:24px;font-family:'Mada',sans-serif}
+.streak-celebration-icon{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:14px;background:#fff0d0;color:#d88c27}
+.streak-celebration-icon svg{fill:#f6b64c4d}
+.streak-celebration-copy{min-width:0;flex:1}
+.streak-celebration-copy>span{display:block;color:#aa772d;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px}
+.streak-celebration[dir='rtl'] .streak-celebration-copy>span{letter-spacing:0}
+.streak-celebration-copy strong{display:block;font:700 19px/1.25 'Outfit',sans-serif}
+.streak-celebration[dir='rtl'] .streak-celebration-copy strong{font-family:'Mada',sans-serif}
+.streak-celebration-copy p{font-size:11px;line-height:1.5;color:var(--muted);margin:5px 0 0}
+.streak-celebration>button{flex:none;width:25px;height:25px;border:0;border-radius:7px;background:var(--soft);color:var(--muted);display:grid;place-items:center}
+[data-theme='dark'] .streak-celebration{border-color:#805e38;background:#1a2a40}
+[data-theme='dark'] .streak-celebration-icon{background:#493b2b;color:#ffbf65}
+[data-theme='dark'] .streak-celebration-copy>span{color:#e5b46d}
+@keyframes streak-arrive{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:480px){.streak-celebration,.streak-celebration[dir='rtl']{left:14px;right:14px;bottom:14px;width:auto}}
+@media(prefers-reduced-motion:reduce){.streak-celebration{animation:none}}
