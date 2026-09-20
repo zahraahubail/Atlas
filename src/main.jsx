@@ -34,6 +34,8 @@ function App() {
   const drag = useRef(null);
   const pointers = useRef(new Map());
   const pinch = useRef(null);
+  const gestureFrame = useRef(null);
+  const gesturePoint = useRef(null);
   const hasDragged = useRef(false);
   const [size, setSize] = useState(620);
 
@@ -42,6 +44,7 @@ function App() {
   useEffect(() => { const closeOnOutsidePress = e => { if (searchCardRef.current && !searchCardRef.current.contains(e.target)) setSearchOpen(false); }; document.addEventListener('pointerdown', closeOnOutsidePress); return () => document.removeEventListener('pointerdown', closeOnOutsidePress); }, []);
   useEffect(() => { const close = e => { if (accountRef.current && !accountRef.current.contains(e.target)) setAccountOpen(false); }; document.addEventListener('pointerdown', close); return () => document.removeEventListener('pointerdown', close); }, []);
   useEffect(() => { const observer = new ResizeObserver(([entry]) => setSize(Math.max(300, Math.min(entry.contentRect.width, entry.contentRect.height)))); if(globeRef.current) observer.observe(globeRef.current); return () => observer.disconnect(); }, []);
+  useEffect(() => () => { if (gestureFrame.current !== null) cancelAnimationFrame(gestureFrame.current); }, []);
   useEffect(() => {
     if (!isSpinning) return;
     let frame;
@@ -82,21 +85,26 @@ function App() {
     }
     setIsDragging(true);
   };
-  const onPointerMove = e => {
-    if (!pointers.current.has(e.pointerId)) return;
-    pointers.current.set(e.pointerId, { x:e.clientX, y:e.clientY });
+  const updateGesture = () => {
     if (pinch.current && pointers.current.size >= 2) {
       const [a, b] = [...pointers.current.values()];
       setZoom(clampZoom(pinch.current.zoom * Math.hypot(a.x-b.x, a.y-b.y) / Math.max(1, pinch.current.distance)));
       return;
     }
-    if (!drag.current) return;
-    const dx = e.clientX-drag.current.x, dy=e.clientY-drag.current.y;
-    if (Math.abs(dx)+Math.abs(dy)>4) hasDragged.current = true;
+    if (!drag.current || !gesturePoint.current) return;
+    const dx = gesturePoint.current.x-drag.current.x, dy=gesturePoint.current.y-drag.current.y;
     const dragSpeed = .35 / Math.max(1, drag.current.zoom);
     setRotation([drag.current.rotation[0] + dx*dragSpeed, Math.max(-85, Math.min(85, drag.current.rotation[1] - dy*dragSpeed))]);
   };
+  const onPointerMove = e => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x:e.clientX, y:e.clientY });
+    gesturePoint.current = { x:e.clientX, y:e.clientY };
+    if (drag.current && Math.abs(e.clientX-drag.current.x)+Math.abs(e.clientY-drag.current.y)>4) hasDragged.current = true;
+    if (gestureFrame.current === null) gestureFrame.current = requestAnimationFrame(() => { gestureFrame.current = null; updateGesture(); });
+  };
   const onPointerUp = e => {
+    if (gestureFrame.current !== null) { cancelAnimationFrame(gestureFrame.current); gestureFrame.current = null; updateGesture(); }
     const clickedCountry = !hasDragged.current && e.type !== 'pointercancel' && drag.current?.countryId;
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinch.current = null;
