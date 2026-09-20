@@ -12,6 +12,11 @@ function storedList(key, valid) {
   }
 }
 
+function isMissingSchema(error) {
+  return ['PGRST202', 'PGRST205', '42P01', '42883'].includes(error?.code) ||
+    /could not find the (table|function)|does not exist/i.test(error?.message || '');
+}
+
 export function useProgress() {
   const [guestMemorized, setGuestMemorized] = useState(() => storedList('atlas-memorized-v1', id => countryById[id]));
   const [guestDays, setGuestDays] = useState(() => storedList('atlas-learning-days-v1', day => /^\d{4}-\d{2}-\d{2}$/.test(day)));
@@ -62,7 +67,7 @@ export function useProgress() {
     ]).then(([countriesResult, daysResult]) => {
       if (!active) return;
       if (countriesResult.error || daysResult.error) {
-        setSyncError('Could not load account progress.');
+        setSyncError(isMissingSchema(countriesResult.error) || isMissingSchema(daysResult.error) ? 'setup' : 'load');
       } else {
         setAccountProgress({
           userId,
@@ -71,7 +76,7 @@ export function useProgress() {
         });
       }
       setProgressLoading(false);
-    }).catch(() => { if (active) { setSyncError('Could not load account progress.'); setProgressLoading(false); } });
+    }).catch(() => { if (active) { setSyncError('load'); setProgressLoading(false); } });
     return () => { active = false; };
   }, [user?.id, refreshKey]);
 
@@ -109,9 +114,9 @@ export function useProgress() {
         : await supabase.rpc('memorize_country', { p_country_code: id, p_local_day: day });
       if (result.error) throw result.error;
       if (milestone) setCelebration(milestone);
-    } catch {
+    } catch (error) {
       setAccountProgress(prev => prev.userId === userId ? accountProgress : prev);
-      setSyncError('Could not save progress. Please try again.');
+      setSyncError(isMissingSchema(error) ? 'setup' : 'save');
     } finally {
       setPendingCountry(null);
     }

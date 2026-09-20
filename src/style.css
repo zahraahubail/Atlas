@@ -178,8 +178,8 @@ button:focus-visible,input:focus-visible{outline-color:#7ea5d3}
 @media(max-width:420px){.topbar .breadcrumb{display:none}.topbar .top-actions{width:100%;justify-content:flex-end}}
 
 /* A brief celebration when a new calendar day extends the streak. */
-.streak-celebration{position:fixed;right:24px;bottom:24px;z-index:35;width:min(390px,calc(100vw - 28px));display:flex;align-items:flex-start;gap:13px;padding:17px 16px;border:1px solid #e4b76c;border-radius:17px;background:var(--card);color:var(--text);box-shadow:0 18px 55px #04152f45;animation:streak-arrive .36s ease-out}
-.streak-celebration[dir='rtl']{right:auto;left:24px;font-family:'Mada',sans-serif}
+.streak-celebration{position:fixed;left:50%;top:calc(env(safe-area-inset-top, 0px) + 18px);z-index:35;width:min(390px,calc(100vw - 28px));display:flex;align-items:flex-start;gap:13px;padding:17px 16px;border:1px solid #e4b76c;border-radius:17px;background:var(--card);color:var(--text);box-shadow:0 18px 55px #04152f45;transform:translateX(-50%);animation:streak-arrive .36s ease-out}
+.streak-celebration[dir='rtl']{font-family:'Mada',sans-serif}
 .streak-celebration-icon{flex:none;width:44px;height:44px;display:grid;place-items:center;border-radius:14px;background:#fff0d0;color:#d88c27}
 .streak-celebration-icon svg{fill:#f6b64c4d}
 .streak-celebration-copy{min-width:0;flex:1}
@@ -192,6 +192,5 @@ button:focus-visible,input:focus-visible{outline-color:#7ea5d3}
 [data-theme='dark'] .streak-celebration{border-color:#805e38;background:#1a2a40}
 [data-theme='dark'] .streak-celebration-icon{background:#493b2b;color:#ffbf65}
 [data-theme='dark'] .streak-celebration-copy>span{color:#e5b46d}
-@keyframes streak-arrive{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-@media(max-width:480px){.streak-celebration,.streak-celebration[dir='rtl']{left:14px;right:14px;bottom:14px;width:auto}}
+@keyframes streak-arrive{from{opacity:0;transform:translate(-50%,-16px) scale(.97)}to{opacity:1;transform:translateX(-50%) scale(1)}}
 @media(prefers-reduced-motion:reduce){.streak-celebration{animation:none}}
