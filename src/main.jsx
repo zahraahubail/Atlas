@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { geoOrthographic, geoPath, geoCentroid, geoGraticule10 } from 'd3-geo';
+import { geoOrthographic, geoPath, geoCentroid, geoContains, geoGraticule10 } from 'd3-geo';
 import { ArrowRight, Check, Compass, Flag, Globe2, MapPin, Moon, MousePointer2, RotateCcw, Search, Shuffle, Sun, X, ZoomIn, ZoomOut, UserRound, LogOut, Flame } from 'lucide-react';
 import { countries, countryById, flagEmoji } from './data';
 import { copy, countryName, capitalName, continentName } from './i18n';
@@ -9,6 +9,8 @@ import AuthDialog from './AuthDialog';
 import { useProgress } from './useProgress';
 
 const TOTAL = countries.length;
+const graticule = geoGraticule10();
+const sphere = { type: 'Sphere' };
 function normalizeSearch(value) { return value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036F\u064B-\u065F\u0670]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').trim(); }
 function saved(key, fallback) { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : fallback; } catch { return fallback; } }
 function App() {
@@ -18,7 +20,7 @@ function App() {
   const [accountError, setAccountError] = useState('');
   const accountRef = useRef(null);
   const [theme, setTheme] = useState(() => saved('atlas-theme-v2', 'dark'));
-  const [language, setLanguage] = useState(() => saved('atlas-site-language-v1', 'en'));
+  const [language, setLanguage] = useState(() => saved('atlas-site-language-v1', 'ar'));
   const [selected, setSelected] = useState('FR');
   const [rotation, setRotation] = useState([-12, -22]);
   const [isSpinning, setIsSpinning] = useState(false);
@@ -30,6 +32,8 @@ function App() {
   const [tip, setTip] = useState({x:0,y:0});
   const [isDragging, setIsDragging] = useState(false);
   const globeRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [useCanvas, setUseCanvas] = useState(() => window.matchMedia('(pointer: coarse) and (min-width: 761px)').matches);
   const searchCardRef = useRef(null);
   const drag = useRef(null);
   const pointers = useRef(new Map());
@@ -44,6 +48,7 @@ function App() {
   useEffect(() => { const closeOnOutsidePress = e => { if (searchCardRef.current && !searchCardRef.current.contains(e.target)) setSearchOpen(false); }; document.addEventListener('pointerdown', closeOnOutsidePress); return () => document.removeEventListener('pointerdown', closeOnOutsidePress); }, []);
   useEffect(() => { const close = e => { if (accountRef.current && !accountRef.current.contains(e.target)) setAccountOpen(false); }; document.addEventListener('pointerdown', close); return () => document.removeEventListener('pointerdown', close); }, []);
   useEffect(() => { const observer = new ResizeObserver(([entry]) => setSize(Math.max(300, Math.min(entry.contentRect.width, entry.contentRect.height)))); if(globeRef.current) observer.observe(globeRef.current); return () => observer.disconnect(); }, []);
+  useEffect(() => { const media = window.matchMedia('(pointer: coarse) and (min-width: 761px)'); const update = () => setUseCanvas(media.matches); media.addEventListener('change', update); return () => media.removeEventListener('change', update); }, []);
   useEffect(() => () => { if (gestureFrame.current !== null) cancelAnimationFrame(gestureFrame.current); }, []);
   useEffect(() => {
     if (!isSpinning) return;
@@ -62,6 +67,55 @@ function App() {
   }, [isSpinning, zoom]);
   const projection = useMemo(() => geoOrthographic().translate([size/2,size/2]).scale(size * .465 * zoom).rotate(rotation).clipAngle(90).precision(.5), [size, rotation, zoom]);
   const path = useMemo(() => geoPath(projection), [projection]);
+  useLayoutEffect(() => {
+    if (!useCanvas || !canvasRef.current || !globeRef.current) return;
+    const canvas = canvasRef.current;
+    const rect = globeRef.current.getBoundingClientRect();
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const width = rect.width, height = rect.height;
+    const pixelWidth = Math.round(width * ratio), pixelHeight = Math.round(height * ratio);
+    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    context.translate((width - size) / 2, (height - size) / 2);
+    const colors = getComputedStyle(document.documentElement);
+    const color = name => colors.getPropertyValue(name).trim();
+    const drawPath = geoPath(projection, context);
+    const ocean = context.createRadialGradient(size * .34, size * .3, 0, size * .5, size * .5, size * .65);
+    ocean.addColorStop(0, color('--ocean-light'));
+    ocean.addColorStop(1, color('--ocean-dark'));
+    context.beginPath(); drawPath(sphere);
+    context.fillStyle = ocean; context.fill();
+    context.strokeStyle = theme === 'dark' ? '#b9d4c8' : '#6ba4ca';
+    context.lineWidth = .8; context.stroke();
+    context.save();
+    context.beginPath(); drawPath(sphere); context.clip();
+    context.beginPath(); drawPath(graticule);
+    context.strokeStyle = theme === 'dark' ? 'rgba(158,190,178,.35)' : 'rgba(76,139,183,.27)';
+    context.lineWidth = .45; context.stroke();
+    context.restore();
+    const learned = new Set(memorized);
+    context.lineJoin = 'round';
+    for (const country of countries) {
+      context.beginPath(); drawPath(country.shape);
+      const isLearned = learned.has(country.id);
+      const isSelected = selected === country.id;
+      const isHovered = hovered === country.id;
+      context.fillStyle = isSelected
+        ? (isLearned ? (theme === 'dark' ? '#68b68a' : '#84c79e') : (theme === 'dark' ? '#d4ae59' : '#ffe18a'))
+        : isHovered ? (isLearned ? '#93cbaa' : color('--land-hover'))
+          : isLearned ? color('--learned') : color('--land');
+      context.strokeStyle = isSelected ? (theme === 'dark' ? '#9dc5eb' : '#173f66') : color('--country-stroke');
+      context.lineWidth = isSelected ? 2.4 : isHovered ? 1.3 : .78;
+      context.fill(); context.stroke();
+    }
+    context.beginPath(); drawPath(sphere);
+    context.strokeStyle = theme === 'dark' ? '#80a99b' : '#5e9ac1';
+    context.lineWidth = 1.4; context.stroke();
+  }, [useCanvas, size, projection, memorized, selected, hovered, theme]);
   const t = copy[language];
   const found = useMemo(() => countries.filter(c => (filter === 'all' || (filter === 'memorized' ? memorized.includes(c.id) : !memorized.includes(c.id))) && normalizeSearch(`${c.name} ${c.capital} ${countryName(c, 'ar')} ${capitalName(c, 'ar')}`).includes(normalizeSearch(query))), [filter, query, memorized]);
   const current = countryById[selected];
@@ -70,6 +124,15 @@ function App() {
   const toggleMemorized = () => toggleCountry(selected);
   const randomCountry = () => { const pool = countries.filter(c => !memorized.includes(c.id)); selectCountry((pool.length ? pool : countries)[Math.floor(Math.random() * (pool.length ? pool.length : countries.length))]); };
   const clampZoom = value => Math.max(.7, Math.min(80, value));
+  const countryAtPoint = (clientX, clientY) => {
+    const rect = globeRef.current.getBoundingClientRect();
+    const x = clientX - rect.left - (rect.width - size) / 2;
+    const y = clientY - rect.top - (rect.height - size) / 2;
+    const radius = size * .465 * zoom;
+    if ((x - size / 2) ** 2 + (y - size / 2) ** 2 > radius ** 2) return null;
+    const coordinates = projection.invert([x, y]);
+    return coordinates ? countries.find(country => geoContains(country.shape, coordinates))?.id ?? null : null;
+  };
   const onPointerDown = e => {
     setIsSpinning(false);
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -80,7 +143,7 @@ function App() {
       drag.current = null;
       hasDragged.current = true;
     } else if (pointers.current.size === 1) {
-      drag.current = { x:e.clientX, y:e.clientY, rotation, zoom, countryId: e.target.closest?.('[data-country-id]')?.dataset.countryId };
+      drag.current = { x:e.clientX, y:e.clientY, rotation, zoom, countryId: useCanvas ? countryAtPoint(e.clientX, e.clientY) : e.target.closest?.('[data-country-id]')?.dataset.countryId };
       hasDragged.current = false;
     }
     setIsDragging(true);
@@ -97,7 +160,13 @@ function App() {
     setRotation([drag.current.rotation[0] + dx*dragSpeed, Math.max(-85, Math.min(85, drag.current.rotation[1] - dy*dragSpeed))]);
   };
   const onPointerMove = e => {
-    if (!pointers.current.has(e.pointerId)) return;
+    if (!pointers.current.has(e.pointerId)) {
+      if (useCanvas && e.pointerType !== 'touch') {
+        setHovered(countryAtPoint(e.clientX, e.clientY));
+        setTip({ x: e.clientX, y: e.clientY });
+      }
+      return;
+    }
     pointers.current.set(e.pointerId, { x:e.clientX, y:e.clientY });
     gesturePoint.current = { x:e.clientX, y:e.clientY };
     if (drag.current && Math.abs(e.clientX-drag.current.x)+Math.abs(e.clientY-drag.current.y)>4) hasDragged.current = true;
@@ -136,9 +205,10 @@ function App() {
     <main className="main"><header className="topbar"><div className="breadcrumb">{t.explore} <span>/</span> <strong>{t.worldMap}</strong></div><div className="top-actions"><span className="compact-progress" aria-label={language==='ar'?`${memorized.length} من أصل ${TOTAL} دولة محفوظة`:`${memorized.length} of ${TOTAL} countries memorized`}><Flag size={15}/>{memorized.length}<span>/ {TOTAL}</span></span><span className="today-label"><span className="live-dot"/> {t.pace}</span><span className={streak.learnedToday?"streak-chip completed":"streak-chip"} aria-label={`${t.dailyStreak}: ${streak.count} ${streak.count===1?t.streakDay:t.streakDays}. ${streak.learnedToday?t.streakDone:t.streakGoal}`} title={`${t.dailyStreak}: ${streak.count} ${streak.count===1?t.streakDay:t.streakDays} · ${streak.learnedToday?t.streakDone:t.streakGoal}`}><Flame size={16}/><strong>{streak.count}</strong><span>{t.dailyStreak}</span></span><button className="language-button" onClick={()=>setLanguage(language==='ar'?'en':'ar')} aria-label={t.switchLanguage} title={t.switchLanguage} lang={language==='en'?'ar':'en'}>{language==='ar'?'EN':'عربي'}</button><button className="theme-button" onClick={()=>setTheme(theme==='light'?'dark':'light')} aria-label={t.switchTheme}>{theme==='light'?<Moon size={18}/>:<Sun size={18}/>}</button><div className="account-wrap" ref={accountRef}><button className="account-button" onClick={()=>user?setAccountOpen(value=>!value):setAuthOpen(true)} aria-label={user?t.account:t.login} aria-expanded={user?accountOpen:undefined}><UserRound size={17}/><span className="account-label">{!authReady?t.loadingProgress:user?(user.email || t.account):t.login}</span></button>{user&&accountOpen&&<div className="account-menu" dir={language==='ar'?'rtl':'ltr'}><div className="account-menu-kicker">{t.account}</div><strong dir="ltr">{user.email || t.account}</strong><p>{memorized.length} / {TOTAL} {t.countriesLearned.toLowerCase()}</p>{accountError&&<p className="account-menu-error" role="alert">{accountError}</p>}<button onClick={async()=>{try{setAccountError('');await logout();setAccountOpen(false)}catch{setAccountError(t.logoutError)}}}><LogOut size={16}/>{t.logout}</button></div>}</div></div></header>
       <div className="content"><section className="intro"><div className="eyebrow"><span className="sparkle">✦</span> {t.eyebrow}</div><h1>{t.heroLine1}<br/><em>{t.heroLine2}</em></h1><p>{t.heroBody}</p></section>
       <section className="workspace"><div className="globe-card"><div className="globe-header"><div><span className="section-kicker">{t.interactiveGlobe}</span><h2>{t.exploreWorld} <span>✳</span></h2></div><button className="surprise-button" onClick={randomCountry}><Shuffle size={15}/> {t.surprise}</button></div>
-        <div className="globe-area" ref={globeRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+        <div className="globe-area" ref={globeRef} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={() => { if (useCanvas) setHovered(null); }}>
           <div className="orbit orbit-one"/><div className="orbit orbit-two"/>
-          <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} className={isDragging?'globe-svg dragging':'globe-svg'} aria-label={t.mapLabel}><defs><radialGradient id="ocean" cx="34%" cy="30%"><stop offset="0%" stopColor="var(--ocean-light)"/><stop offset="100%" stopColor="var(--ocean-dark)"/></radialGradient><clipPath id="globeClip"><path d={path({type:'Sphere'})}/></clipPath></defs><path d={path({type:'Sphere'})} fill="url(#ocean)" className="sphere"/><path d={path(geoGraticule10())} className="graticule" clipPath="url(#globeClip)"/>{countries.map(c => <path key={c.id} data-country-id={c.id} d={path(c.shape)||''} className={`country ${memorized.includes(c.id)?'learned':''} ${selected===c.id?'selected':''} ${hovered===c.id?'hovered':''}`} onPointerEnter={e=>{setHovered(c.id);setTip({x:e.clientX,y:e.clientY})}} onPointerMove={e=>setTip({x:e.clientX,y:e.clientY})} onPointerLeave={()=>setHovered(null)} />)}<path d={path({type:'Sphere'})} className="sphere-outline"/></svg>
+          {useCanvas ? <canvas ref={canvasRef} className="globe-svg" role="img" aria-label={t.mapLabel}/> :
+          <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} className={isDragging?'globe-svg dragging':'globe-svg'} aria-label={t.mapLabel}><defs><radialGradient id="ocean" cx="34%" cy="30%"><stop offset="0%" stopColor="var(--ocean-light)"/><stop offset="100%" stopColor="var(--ocean-dark)"/></radialGradient><clipPath id="globeClip"><path d={path(sphere)}/></clipPath></defs><path d={path(sphere)} fill="url(#ocean)" className="sphere"/><path d={path(graticule)} className="graticule" clipPath="url(#globeClip)"/>{countries.map(c => <path key={c.id} data-country-id={c.id} d={path(c.shape)||''} className={`country ${memorized.includes(c.id)?'learned':''} ${selected===c.id?'selected':''} ${hovered===c.id?'hovered':''}`} onPointerEnter={e=>{setHovered(c.id);setTip({x:e.clientX,y:e.clientY})}} onPointerMove={e=>setTip({x:e.clientX,y:e.clientY})} onPointerLeave={()=>setHovered(null)} />)}<path d={path(sphere)} className="sphere-outline"/></svg>}
           {hovered && !isDragging && <div className="map-tooltip" style={{left:tip.x,top:tip.y}}>{flagEmoji(hovered)} {countryName(countryById[hovered], language)}</div>}
           <div className="map-annotation"><span className="annotation-dot"/> {t.dragExplore}</div><div className="map-controls"><button onPointerDown={e=>e.stopPropagation()} onClick={()=>adjustZoom(1.6)} aria-label={t.zoomIn}><ZoomIn size={19}/></button><span/><button onPointerDown={e=>e.stopPropagation()} onClick={()=>adjustZoom(1/1.6)} aria-label={t.zoomOut}><ZoomOut size={19}/></button><span/><button className={isSpinning?'spin-active':''} onPointerDown={e=>e.stopPropagation()} onClick={()=>setIsSpinning(value=>!value)} aria-label={isSpinning?t.stopRotation:t.rotateGlobe} title={isSpinning?t.stopRotation:t.rotateGlobe} aria-pressed={isSpinning}><RotateCcw size={18}/></button></div>
         </div><div className="globe-footer"><div className="legend"><span><i className="swatch yellow"/> {t.toExplore}</span><span><i className="swatch green"/> {t.memorized}</span><span><i className="swatch outline"/> {t.selected}</span></div><div className="globe-hint"><MousePointer2 size={14}/> {t.dragHint}</div></div></div>
